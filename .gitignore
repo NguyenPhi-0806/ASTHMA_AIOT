@@ -1,0 +1,21 @@
+# Build artifacts
+firmware/main/build/
+build/
+*.bin
+*.elf
+*.map
+*.o
+*.d
+compile_commands.json
+sdkconfig
+partitions.csv
+
+# Secrets (WiFi password, Blynk token)
+firmware/main/secrets.h
+
+# IDE / local config
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db

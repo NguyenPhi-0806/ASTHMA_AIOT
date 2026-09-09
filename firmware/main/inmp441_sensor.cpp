@@ -17,14 +17,27 @@
 // AUDIO
 // =========================
 
-#define SAMPLE_RATE 16000
+#define SAMPLE_RATE INMP441_SAMPLE_RATE
 #define BUFFER_SIZE 256
 
-int32_t samples[BUFFER_SIZE];
+// Report Serial moi 1 giay de kiem tra sample rate
+#define STATS_INTERVAL_MS 1000
 
-float rmsValue = 0;
+int32_t rawSamples[BUFFER_SIZE];
 
-int32_t peakValue = 0;
+// Ring buffer RAW PCM int16 - du lieu dai dien cho AI training sau nay
+static int16_t ringBuffer[INMP441_RING_BUFFER_SIZE];
+static uint32_t ringWriteIndex = 0;
+
+static uint32_t totalSamples = 0;
+static uint32_t windowSamples = 0;
+static uint32_t measuredRate = 0;
+
+static unsigned long lastStatsMs = 0;
+static unsigned long lastTimestampMs = 0;
+
+static float rmsValue = 0;
+static int32_t peakValue = 0;
 
 // =========================
 // INIT
@@ -49,9 +62,11 @@ bool inmp441_init() {
 
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
 
-      .dma_buf_count = 8,
+      // 16 x 128 = 2048 samples ~ 128 ms audio:
+      // du cho ca nhung luc bus I2C (OLED/MAX30102) dang ban
+      .dma_buf_count = 16,
 
-      .dma_buf_len = 64,
+      .dma_buf_len = 128,
 
       .use_apll = false,
 
@@ -95,8 +110,17 @@ bool inmp441_init() {
 
   i2s_zero_dma_buffer(I2S_PORT);
 
+  memset(ringBuffer, 0, sizeof(ringBuffer));
+  ringWriteIndex = 0;
+  totalSamples = 0;
+  windowSamples = 0;
+  measuredRate = 0;
+  lastStatsMs = millis();
+  lastTimestampMs = 0;
+
   Serial.println("[INMP441] OK");
   Serial.println("[INMP441] Sample rate: 16 kHz");
+  Serial.println("[INMP441] RAW PCM: int16, ring buffer 1 sec");
 
   return true;
 }
@@ -107,41 +131,90 @@ bool inmp441_init() {
 
 void inmp441_update() {
 
-  size_t bytesRead = 0;
-
-  esp_err_t result =
-      i2s_read(I2S_PORT, samples, sizeof(samples), &bytesRead, 0);
-
-  if (result != ESP_OK || bytesRead == 0) {
-
-    return;
-  }
-
-  int sampleCount = bytesRead / sizeof(int32_t);
-
-  long double sum = 0;
+  int64_t sum = 0;
 
   int32_t peak = 0;
 
-  for (int i = 0; i < sampleCount; i++) {
+  int readCount = 0;
 
-    int32_t sample = samples[i] >> 14;
+  // Rut het du lieu co san trong DMA moi vong loop.
+  // Mot lan doc chi lay toi da 256 sample, neu loop chay cham hon
+  // toc do audio thi doc 1 lan se tran DMA -> mat sample.
+  for (int n = 0; n < 8; n++) {
 
-    int32_t absolute = abs(sample);
+    size_t bytesRead = 0;
 
-    if (absolute > peak) {
-      peak = absolute;
+    esp_err_t result =
+        i2s_read(I2S_PORT, rawSamples, sizeof(rawSamples), &bytesRead, 0);
+
+    if (result != ESP_OK || bytesRead == 0) {
+
+      break;
     }
 
-    sum += (long double)sample * sample;
+    int sampleCount = bytesRead / sizeof(int32_t);
+
+    for (int i = 0; i < sampleCount; i++) {
+
+      // 24-bit trong khung 32-bit -> PCM int16 chuan (top 16 bit)
+      int16_t sample = (int16_t)(rawSamples[i] >> 16);
+
+      ringBuffer[ringWriteIndex] = sample;
+
+      ringWriteIndex = (ringWriteIndex + 1) % INMP441_RING_BUFFER_SIZE;
+
+      int32_t absolute = (sample < 0) ? -sample : sample;
+
+      if (absolute > peak) {
+        peak = absolute;
+      }
+
+      sum += (int64_t)sample * sample;
+    }
+
+    readCount += sampleCount;
   }
 
-  if (sampleCount > 0) {
+  if (readCount > 0) {
 
-    rmsValue = sqrt((double)sum / sampleCount);
+    rmsValue = sqrt((double)sum / readCount);
+
+    totalSamples += readCount;
+
+    windowSamples += readCount;
+
+    lastTimestampMs = millis();
   }
 
   peakValue = peak;
+
+  // =========================
+  // SERIAL REPORT (1 sec)
+  // =========================
+
+  unsigned long now = millis();
+
+  if (now - lastStatsMs >= STATS_INTERVAL_MS) {
+
+    float elapsed = (now - lastStatsMs) / 1000.0;
+
+    if (elapsed > 0) {
+      measuredRate = (uint32_t)(windowSamples / elapsed);
+    }
+
+    Serial.println();
+    Serial.println("[AUDIO]");
+    Serial.printf("rate       = %u Hz\n", SAMPLE_RATE);
+    Serial.printf("measured   = %u S/s\n", measuredRate);
+    Serial.printf("samples    = %u\n", windowSamples);
+    Serial.printf("total      = %u\n", totalSamples);
+    Serial.printf("duration   = %.3f sec\n", elapsed);
+    Serial.printf("RMS        = %.0f\n", rmsValue);
+    Serial.printf("PEAK       = %d\n", peakValue);
+
+    lastStatsMs = now;
+    windowSamples = 0;
+  }
 }
 
 // =========================
@@ -151,3 +224,40 @@ void inmp441_update() {
 float inmp441_getRMS() { return rmsValue; }
 
 int32_t inmp441_getPeak() { return peakValue; }
+
+uint32_t inmp441_getSampleRate() { return SAMPLE_RATE; }
+
+uint32_t inmp441_getTotalSamples() { return totalSamples; }
+
+float inmp441_getDurationSeconds() { return (float)totalSamples / SAMPLE_RATE; }
+
+uint32_t inmp441_getMeasuredRate() { return measuredRate; }
+
+unsigned long inmp441_getTimestampMs() { return lastTimestampMs; }
+
+int inmp441_readRaw(int16_t *dest, int maxSamples) {
+
+  if (dest == NULL || maxSamples <= 0) {
+    return 0;
+  }
+
+  int available = INMP441_RING_BUFFER_SIZE;
+
+  if ((uint32_t)available > totalSamples) {
+    available = totalSamples;
+  }
+
+  if (available > maxSamples) {
+    available = maxSamples;
+  }
+
+  // Vitri sample cu nhat con lai trong ring buffer
+  uint32_t start = (ringWriteIndex + INMP441_RING_BUFFER_SIZE - available) %
+                   INMP441_RING_BUFFER_SIZE;
+
+  for (int i = 0; i < available; i++) {
+    dest[i] = ringBuffer[(start + i) % INMP441_RING_BUFFER_SIZE];
+  }
+
+  return available;
+}

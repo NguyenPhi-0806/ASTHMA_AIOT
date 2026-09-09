@@ -39,6 +39,10 @@ float beatsPerMinute = 0;
 
 int beatAvg = 0;
 
+// Cache gia tri IR cua lan doc gan nhat - tranh doc I2C nhieu lan moi loop
+// (bus I2C bi chiem se lam INMP441 mat sample do DMA tran)
+static long lastIRValue = 0;
+
 // =========================
 // INIT
 // =========================
@@ -74,7 +78,9 @@ bool max30102_init() {
 
 void max30102_update() {
 
-  long irValue = particleSensor.getIR();
+  lastIRValue = particleSensor.getIR();
+
+  long irValue = lastIRValue;
 
   // =========================
   // NO FINGER
@@ -122,10 +128,10 @@ void max30102_update() {
 // GETTERS
 // =========================
 
-long max30102_getIR() { return particleSensor.getIR(); }
+long max30102_getIR() { return lastIRValue; }
 
 float max30102_getBPM() { return beatsPerMinute; }
 
 int max30102_getAverageBPM() { return beatAvg; }
 
-bool max30102_hasFinger() { return particleSensor.getIR() >= FINGER_THRESHOLD; }
+bool max30102_hasFinger() { return lastIRValue >= FINGER_THRESHOLD; }
