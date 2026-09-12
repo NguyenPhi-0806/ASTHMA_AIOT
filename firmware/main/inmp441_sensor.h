@@ -9,11 +9,16 @@
 
 #define INMP441_SAMPLE_RATE 16000
 
-// Ring buffer 1 giay audio (int16 PCM), dung de xuat RAW cho data logger sau nay
+// Ring buffer 1 giay audio (int16 PCM), dung de xuat RAW cho data logger sau
+// nay
 #define INMP441_RING_BUFFER_SIZE 16000
 
 bool inmp441_init();
 void inmp441_update();
+
+// Bat/tat viec do am thanh - chi bat khi co finger, de tranh
+// thu am thanh moi truong luc khong do (du lieu training sach hon)
+void inmp441_setActive(bool active);
 
 // Monitoring (gia tri tinh tren window gan nhat)
 float inmp441_getRMS();

@@ -1,5 +1,5 @@
 #include <Arduino.h>
-//
+
 #include "blynk_manager.h"
 #include "inmp441_sensor.h"
 #include "max30102_sensor.h"
@@ -115,6 +115,14 @@ void loop() {
   max30102_update();
 
   // ==========================
+  // AUDIO: chi bat khi co finger
+  // ==========================
+
+  bool fingerNow = max30102_hasFinger();
+
+  inmp441_setActive(fingerNow);
+
+  // ==========================
   // READ INMP441
   // ==========================
 
@@ -145,6 +153,8 @@ void loop() {
 
                 inmp441_getRMS(), inmp441_getPeak(), inmp441_getMeasuredRate(),
                 waveBuf, waveLen,
+
+                wifi_isConnected(),
 
                 blynk_isConnected(), blynk_getWindowRemainingSec(),
                 blynk_isWindowValidSoFar());

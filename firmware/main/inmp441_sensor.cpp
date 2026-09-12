@@ -39,6 +39,9 @@ static unsigned long lastTimestampMs = 0;
 static float rmsValue = 0;
 static int32_t peakValue = 0;
 
+// Mac dinh tat - chi bat khi main.ino goi inmp441_setActive(true) luc co finger
+static bool audioActive = false;
+
 // =========================
 // INIT
 // =========================
@@ -110,6 +113,9 @@ bool inmp441_init() {
 
   i2s_zero_dma_buffer(I2S_PORT);
 
+  // Mac dinh tat mic ngay tu dau - chi bat khi main.ino phat hien co finger
+  i2s_stop(I2S_PORT);
+
   memset(ringBuffer, 0, sizeof(ringBuffer));
   ringWriteIndex = 0;
   totalSamples = 0;
@@ -130,6 +136,13 @@ bool inmp441_init() {
 // =========================
 
 void inmp441_update() {
+
+  // Khong co finger -> khong doc mic, tranh lay tap am moi truong
+  // lan vao du lieu (giu du lieu training sach: chi co am thanh
+  // luc thuc su dang do benh nhan)
+  if (!audioActive) {
+    return;
+  }
 
   int64_t sum = 0;
 
@@ -234,6 +247,40 @@ float inmp441_getDurationSeconds() { return (float)totalSamples / SAMPLE_RATE; }
 uint32_t inmp441_getMeasuredRate() { return measuredRate; }
 
 unsigned long inmp441_getTimestampMs() { return lastTimestampMs; }
+
+void inmp441_setActive(bool active) {
+
+  if (active == audioActive) {
+    return;
+  }
+
+  audioActive = active;
+
+  if (!active) {
+
+    // Tat mic that su (dung xung clock I2S) - khong chi ngung doc,
+    // ma dung luon phan cung de tiet kiem dien va khong con tin
+    // hieu nao duoc tao ra
+    i2s_stop(I2S_PORT);
+
+    // Xoa cac gia tri hien thi/gui len Blynk ve 0 - khong con la
+    // "gia tri cu" cua lan do truoc
+    rmsValue = 0;
+    peakValue = 0;
+    measuredRate = 0;
+    windowSamples = 0;
+
+  } else {
+
+    // Vua bat lai mic - xoa sach DMA buffer cu (im lang luc chua
+    // bat) truoc khi bat dau doc, tranh lay nham khoang lang do
+    i2s_zero_dma_buffer(I2S_PORT);
+
+    i2s_start(I2S_PORT);
+
+    lastStatsMs = millis();
+  }
+}
 
 int inmp441_readRaw(int16_t *dest, int maxSamples) {
 

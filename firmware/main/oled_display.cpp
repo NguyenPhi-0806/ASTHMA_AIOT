@@ -195,6 +195,8 @@ void oled_update(float bpm, int averageBpm, long irValue, bool fingerDetected,
 
                  const int16_t *wave, int waveLen,
 
+                 bool wifiConnected,
+
                  bool blynkConnected, unsigned long blynkRemainingSec,
                  bool blynkWindowValid) {
 
@@ -211,6 +213,12 @@ void oled_update(float bpm, int averageBpm, long irValue, bool fingerDetected,
   display.setCursor(0, 0);
 
   display.println("ASTHMA AIoT");
+
+  display.setCursor(86, 0);
+
+  display.print("W:");
+
+  display.print(wifiConnected ? "OK" : "--");
 
   display.drawLine(0, 9, 127, 9, SSD1306_WHITE);
 

@@ -17,6 +17,8 @@ void oled_update(float bpm, int averageBpm, long irValue, bool fingerDetected,
 
                  const int16_t *wave, int waveLen,
 
+                 bool wifiConnected,
+
                  bool blynkConnected, unsigned long blynkRemainingSec,
                  bool blynkWindowValid);
 
