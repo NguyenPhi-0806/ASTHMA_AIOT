@@ -194,7 +194,9 @@ void inmp441_update()
       }
       // ---- HET PHAN THEM ----
 
-      // ---- THEM: gom mau vao ring buffer ----
+      ringBuffer[ringWriteIndex] = sample;                              // <-- THÊM DÒNG NÀY
+      ringWriteIndex = (ringWriteIndex + 1) % INMP441_RING_BUFFER_SIZE; // <-- THÊM DÒNG NÀY
+
       int32_t absolute = (sample < 0) ? -sample : sample;
 
       if (absolute > peak)
@@ -204,7 +206,6 @@ void inmp441_update()
 
       sum += (int64_t)sample * sample;
     }
-
     readCount += sampleCount;
   }
 

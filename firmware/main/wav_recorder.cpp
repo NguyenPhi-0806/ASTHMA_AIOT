@@ -12,7 +12,7 @@ static String s_currentLabel = "normal";
 static int s_fileIndex = 1;
 static bool s_waitingToSend = false;
 
-static const char *s_serverIp = "192.168.1.21";
+static const char *s_serverIp = "192.168.59.206";
 static uint16_t s_serverPort = 5005;
 
 static bool wavSendToServer(const int16_t *buf, int sampleCount,

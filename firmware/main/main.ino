@@ -113,7 +113,7 @@ void setup()
 
   delay(1500);
 
-  wavRecorderSetServer("192.168.1.21", 5005); // sửa IP máy tính chạy pc_wav_receiver.py
+  wavRecorderSetServer("192.168.59.206", 5005); // sửa IP máy tính chạy pc_wav_receiver.py
   wavRecorderInit();
   //
 }

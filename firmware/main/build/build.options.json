@@ -1,9 +1,0 @@
-{
-  "additionalFiles": "../..,../..,../..,../..,../..,../..",
-  "compiler.optimization_flags": "-Os",
-  "customBuildProperties": "",
-  "fqbn": "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi",
-  "hardwareFolders": "/home/tnd/.arduino15/packages/esp32/hardware/esp32/3.3.11,/home/tnd/.arduino15/packages/esp32/hardware/esp32/3.3.11",
-  "otherLibrariesFolders": "/home/tnd/Arduino/libraries",
-  "sketchLocation": "/home/tnd/Documents/Project_Dien_Tu_Vien_Thong/ASTHMA_AIOT/firmware/main"
-}
