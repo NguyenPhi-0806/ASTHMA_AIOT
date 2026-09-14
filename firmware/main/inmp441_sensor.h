@@ -3,6 +3,14 @@
 
 #include <Arduino.h>
 
+// ==== Ghi 1 doan co do dai co dinh de xuat .wav (dung rieng, khong lien quan ring buffer OLED) ====
+#define INMP441_RECORD_TARGET_SAMPLES 48000 // 3 giay @ 16kHz
+
+bool inmp441_startRecording();                          // bat dau gom mau, tu bat mic neu dang tat
+bool inmp441_isRecording();                             // dang gom, chua du 48000 mau
+bool inmp441_isRecordingReady();                        // da du 48000 mau, san sang lay ra gui
+const int16_t *inmp441_getRecordingBuffer(int *outLen); // lay con tro + so luong mau
+void inmp441_clearRecording();                          // reset sau khi da gui xong
 // =========================
 // AUDIO CONFIG
 // =========================

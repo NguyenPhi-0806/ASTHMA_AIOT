@@ -27,6 +27,10 @@ int32_t rawSamples[BUFFER_SIZE];
 
 // Ring buffer RAW PCM int16 - du lieu dai dien cho AI training sau nay
 static int16_t ringBuffer[INMP441_RING_BUFFER_SIZE];
+static int16_t recordBuffer[INMP441_RECORD_TARGET_SAMPLES];
+static uint32_t recordIndex = 0;
+static bool recording = false;
+static bool recordingReady = false;
 static uint32_t ringWriteIndex = 0;
 
 static uint32_t totalSamples = 0;
@@ -46,7 +50,8 @@ static bool audioActive = false;
 // INIT
 // =========================
 
-bool inmp441_init() {
+bool inmp441_init()
+{
 
   Serial.println();
   Serial.println("[INMP441] Initializing...");
@@ -95,7 +100,8 @@ bool inmp441_init() {
 
   result = i2s_driver_install(I2S_PORT, &config, 0, NULL);
 
-  if (result != ESP_OK) {
+  if (result != ESP_OK)
+  {
 
     Serial.println("[INMP441] Driver install failed!");
 
@@ -104,7 +110,8 @@ bool inmp441_init() {
 
   result = i2s_set_pin(I2S_PORT, &pin_config);
 
-  if (result != ESP_OK) {
+  if (result != ESP_OK)
+  {
 
     Serial.println("[INMP441] Pin configuration failed!");
 
@@ -135,12 +142,14 @@ bool inmp441_init() {
 // UPDATE
 // =========================
 
-void inmp441_update() {
+void inmp441_update()
+{
 
   // Khong co finger -> khong doc mic, tranh lay tap am moi truong
   // lan vao du lieu (giu du lieu training sach: chi co am thanh
   // luc thuc su dang do benh nhan)
-  if (!audioActive) {
+  if (!audioActive)
+  {
     return;
   }
 
@@ -153,32 +162,43 @@ void inmp441_update() {
   // Rut het du lieu co san trong DMA moi vong loop.
   // Mot lan doc chi lay toi da 256 sample, neu loop chay cham hon
   // toc do audio thi doc 1 lan se tran DMA -> mat sample.
-  for (int n = 0; n < 8; n++) {
+  for (int n = 0; n < 8; n++)
+  {
 
     size_t bytesRead = 0;
 
     esp_err_t result =
         i2s_read(I2S_PORT, rawSamples, sizeof(rawSamples), &bytesRead, 0);
 
-    if (result != ESP_OK || bytesRead == 0) {
+    if (result != ESP_OK || bytesRead == 0)
+    {
 
       break;
     }
 
     int sampleCount = bytesRead / sizeof(int32_t);
 
-    for (int i = 0; i < sampleCount; i++) {
-
-      // 24-bit trong khung 32-bit -> PCM int16 chuan (top 16 bit)
+    for (int i = 0; i < sampleCount; i++)
+    {
       int16_t sample = (int16_t)(rawSamples[i] >> 16);
 
-      ringBuffer[ringWriteIndex] = sample;
+      // ---- THEM: gom mau cho file .wav dang ghi (neu co) ----
+      if (recording && recordIndex < INMP441_RECORD_TARGET_SAMPLES)
+      {
+        recordBuffer[recordIndex++] = sample;
+        if (recordIndex >= INMP441_RECORD_TARGET_SAMPLES)
+        {
+          recording = false;
+          recordingReady = true;
+        }
+      }
+      // ---- HET PHAN THEM ----
 
-      ringWriteIndex = (ringWriteIndex + 1) % INMP441_RING_BUFFER_SIZE;
-
+      // ---- THEM: gom mau vao ring buffer ----
       int32_t absolute = (sample < 0) ? -sample : sample;
 
-      if (absolute > peak) {
+      if (absolute > peak)
+      {
         peak = absolute;
       }
 
@@ -188,7 +208,8 @@ void inmp441_update() {
     readCount += sampleCount;
   }
 
-  if (readCount > 0) {
+  if (readCount > 0)
+  {
 
     rmsValue = sqrt((double)sum / readCount);
 
@@ -207,11 +228,13 @@ void inmp441_update() {
 
   unsigned long now = millis();
 
-  if (now - lastStatsMs >= STATS_INTERVAL_MS) {
+  if (now - lastStatsMs >= STATS_INTERVAL_MS)
+  {
 
     float elapsed = (now - lastStatsMs) / 1000.0;
 
-    if (elapsed > 0) {
+    if (elapsed > 0)
+    {
       measuredRate = (uint32_t)(windowSamples / elapsed);
     }
 
@@ -248,15 +271,18 @@ uint32_t inmp441_getMeasuredRate() { return measuredRate; }
 
 unsigned long inmp441_getTimestampMs() { return lastTimestampMs; }
 
-void inmp441_setActive(bool active) {
+void inmp441_setActive(bool active)
+{
 
-  if (active == audioActive) {
+  if (active == audioActive)
+  {
     return;
   }
 
   audioActive = active;
 
-  if (!active) {
+  if (!active)
+  {
 
     // Tat mic that su (dung xung clock I2S) - khong chi ngung doc,
     // ma dung luon phan cung de tiet kiem dien va khong con tin
@@ -269,8 +295,9 @@ void inmp441_setActive(bool active) {
     peakValue = 0;
     measuredRate = 0;
     windowSamples = 0;
-
-  } else {
+  }
+  else
+  {
 
     // Vua bat lai mic - xoa sach DMA buffer cu (im lang luc chua
     // bat) truoc khi bat dau doc, tranh lay nham khoang lang do
@@ -282,19 +309,23 @@ void inmp441_setActive(bool active) {
   }
 }
 
-int inmp441_readRaw(int16_t *dest, int maxSamples) {
+int inmp441_readRaw(int16_t *dest, int maxSamples)
+{
 
-  if (dest == NULL || maxSamples <= 0) {
+  if (dest == NULL || maxSamples <= 0)
+  {
     return 0;
   }
 
   int available = INMP441_RING_BUFFER_SIZE;
 
-  if ((uint32_t)available > totalSamples) {
+  if ((uint32_t)available > totalSamples)
+  {
     available = totalSamples;
   }
 
-  if (available > maxSamples) {
+  if (available > maxSamples)
+  {
     available = maxSamples;
   }
 
@@ -302,9 +333,39 @@ int inmp441_readRaw(int16_t *dest, int maxSamples) {
   uint32_t start = (ringWriteIndex + INMP441_RING_BUFFER_SIZE - available) %
                    INMP441_RING_BUFFER_SIZE;
 
-  for (int i = 0; i < available; i++) {
+  for (int i = 0; i < available; i++)
+  {
     dest[i] = ringBuffer[(start + i) % INMP441_RING_BUFFER_SIZE];
   }
 
   return available;
+}
+bool inmp441_startRecording()
+{
+  if (recording)
+    return false; // dang ghi do dang khac, bo qua
+  recordIndex = 0;
+  recordingReady = false;
+  recording = true;
+  if (!audioActive)
+  {
+    inmp441_setActive(true); // ep bat mic du khong co finger
+  }
+  return true;
+}
+
+bool inmp441_isRecording() { return recording; }
+bool inmp441_isRecordingReady() { return recordingReady; }
+
+const int16_t *inmp441_getRecordingBuffer(int *outLen)
+{
+  if (outLen)
+    *outLen = recordingReady ? INMP441_RECORD_TARGET_SAMPLES : 0;
+  return recordBuffer;
+}
+
+void inmp441_clearRecording()
+{
+  recordingReady = false;
+  recordIndex = 0;
 }
